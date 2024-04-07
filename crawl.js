@@ -2,9 +2,9 @@ const url = require('node:url')
 const { JSDOM } = require('jsdom')
 
 function normalizeURL(inputURL) {
-    const parsedURL = url.parse(inputURL)
+    const parsedURL = new URL(inputURL)
 
-    let urlHostPath =  `${parsedURL.hostname}${parsedURL.pathname}`
+    let urlHostPath =  `${parsedURL.host}${parsedURL.pathname}`
 
     if (urlHostPath.length > 0 && urlHostPath.slice(-1) === '/') {
         urlHostPath = urlHostPath.slice(0, -1)
@@ -45,21 +45,45 @@ function getURLsFromHTML (htmlBody, baseUrl) {
     return urls
 }
 
-async function crawlPage(currentURL) {
+async function crawlPage(baseURL, currentURL, pages) {
+
+    const currentURLObj = new URL(currentURL)
+    const baseURLObj = new URL(baseURL)
+
+    if (currentURLObj.hostname !== baseURLObj.hostname) {
+        return pages
+    }
+
+    const normalizedCurrentURL = normalizeURL(currentURL)
+
+    if (normalizedCurrentURL in pages) {
+        pages[normalizedCurrentURL]++
+        return pages
+    }
+    else {
+        pages[normalizedCurrentURL] = 1
+    }
+
+    console.log(`Crawling ${currentURL}`)
+    let htmlBody = ''
     
     try {
         const res = await fetch(currentURL)
         if (res.status > 399) {
             console.log(`HTTP error, code ${res.status}`)
-            return
+            return pages
         }
         const contentType = res.headers.get('content-type')
         if (!contentType.includes('text/html')) {
             console.log(`Non-html response: ${contentType}`)
-            return
+            return pages
         }
 
-        console.log(await res.text())
+        htmlBody = await res.text()
+
+        
+
+        
         
            
         
@@ -69,11 +93,23 @@ async function crawlPage(currentURL) {
 
     
 
+        const collectedURLs = getURLsFromHTML(htmlBody, baseURL)
+
+        for (const item of collectedURLs) {
+            pages = await crawlPage(baseURL, item, pages)
+        }
+        
+
+        return pages
+
+    
+
     
 }
 
 module.exports = {
+    crawlPage,
     normalizeURL,
     getURLsFromHTML,
-    crawlPage    
+        
 }
